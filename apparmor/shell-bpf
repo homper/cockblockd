@@ -1,0 +1,64 @@
+abi <abi/5.0>,
+include <tunables/global>
+
+# Confinement to stop detaching / replacing the cockblock BPF LSM program from
+# common interactive tools.
+#
+# This profile IS enforced on this kernel (Ubuntu 7.0.0 + apparmor 5.0):
+#   * The attachment path confines bash/sh/dash/python3/perl/bpftool. A child
+#     they exec (e.g. pkill, kill) inherits the "shell-bpf" label unless an
+#     explicit transition rule exists. This is why signals FROM these shells to
+#     snap apps can be refused by the snap's profile - see the signal note below.
+#   * `deny bpf` blocks the bpf(2) syscall (BPF_LINK_UPDATE / BPF_LINK_DETACH /
+#     BPF_PROG_DETACH) from these tools, preventing them from detaching the
+#     cockblock LSM link pinned in bpffs (/sys/fs/bpf/cockblock_lsm). AppArmor
+#     profiles apply to the binary regardless of who runs it, so
+#     `sudo bpftool ...` or `sudo python3 -c '...bpf...'` is blocked the same as
+#     a bare invocation.
+#
+# Defense in depth: login sessions on this system ALSO have CAP_BPF /
+# CAP_SYS_ADMIN dropped (pam_cap + a systemd global CapabilityBoundingSet), so
+# bpf(2) is refused for unprivileged contexts even outside this profile. The
+# AppArmor `deny bpf` layer covers any confined process that somehow retained
+# those caps; the cap-drop is the primary lock, this profile is an extra hurdle.
+#
+# flags=(default_allow) leaves the tools' normal behaviour unchanged (shells
+# and interpreters almost never need bpf(2) for legitimate work); only the
+# explicit `deny bpf` rule narrows that default.
+#
+# LIMITATIONS (best-effort, important):
+#  * Only CONFINED senders are affected. An UNCONFINED process (any tool not
+#    listed here, or a custom C binary calling bpf(2) directly) bypasses this.
+#    This is why the cap-drop layer above is the primary lock and this AppArmor
+#    layer is an extra hurdle, not a lock.
+#  * Confining python3 means ALL python3 scripts run under this profile. With
+#    default_allow + only `deny bpf`, the impact is minimal, but be aware.
+#  * bpftool is denied bpf here, so it can no longer manage ANY BPF program on
+#    the host from this profile. The cockblock loader uses libbpf directly
+#    (not bpftool), so this does not break loading cockblock itself.
+#  * Because child processes inherit the shell-bpf label, signals sent from
+#    these shells to snap/flatpak apps may be DENIED by the TARGET's profile:
+#    snaps grant `signal (receive)` only from peer=unconfined (and a few
+#    snap-internal peers), NOT from peer=shell-bpf. The `signal (send)` grant
+#    below covers the send side; it cannot widen the receiver's allowed peers.
+#    To signal a snap app, run the signal from an unconfined context, e.g.
+#      sudo systemd-run --wait kill -KILL <pid>
+#      sudo aa-exec -p unconfined -- pkill -KILL <name>
+#
+# Network is intentionally NOT denied.
+
+profile shell-bpf /usr/bin/{bash,sh,dash,python3,perl,bpftool} flags=(default_allow) {
+  # Deny the bpf(2) syscall: blocks attaching/detaching/updating BPF programs
+  # (including the cockblock LSM link) from these tools. The mode is required
+  # by apparmor_parser >= 4.x/5.x; "rw" denies both read and write bpf ops.
+  deny bpf rw,
+
+  # Grant the SEND side of signals from this profile. NOTE: this does NOT
+  # guarantee delivery - the TARGET's profile must also grant
+  # `signal (receive) peer=shell-bpf`. Snaps only allow receive from
+  # peer=unconfined, so `pkill`/`kill` of a snap app (e.g. telegram-desktop)
+  # from a shell-bpf shell is DENIED by the snap's profile despite this grant.
+  # Use an unconfined context (systemd-run / aa-exec -p unconfined) to signal
+  # snaps. Only "send" is granted here; receiving signals is not widened.
+  signal (send) set=(term,kill,quit,hup),
+}

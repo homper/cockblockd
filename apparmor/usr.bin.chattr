@@ -1,0 +1,66 @@
+abi <abi/5.0>,
+include <tunables/global>
+
+# Confinement profile for chattr (ENFORCE mode).
+#
+# Goal: once the cockblock unit files / target are made immutable (chattr +i),
+# and the cockblock.target.wants/ directory is made immutable (so `systemctl
+# disable cockblock` cannot unlink the service's enable symlink inside it),
+# prevent the user from clearing those flags via `chattr -i` (which would let
+# them undo the protection and disable/remove cockblock again).
+#
+# ENFORCE mode (no flags) is required: on kernels that emulate default_allow as
+# unconfined (e.g. this Ubuntu 7.0 kernel + apparmor 5.0-beta userspace),
+# default_allow profiles do NOT enforce deny rules for file access - only
+# enforce mode does. The broad `file,` + `capability,` allows preserve chattr's
+# normal behaviour on every other file; only the explicit `deny` rules below
+# are enforced. `deny` overrides `allow` in AppArmor, so the cockblock paths are
+# blocked even though `file,` would otherwise allow them.
+#
+# AppArmor profiles apply to the binary regardless of who runs it, so
+# `sudo chattr -i ...` is blocked too.
+#
+# How it blocks: chattr must open() the target file to issue the FS_IOC_SETFLAGS
+# ioctl. The deny covers read+write open modes (r, w) so the open fails before
+# any ioctl can run.
+#
+# LIMITATION (best-effort, not absolute):
+#  * A non-confined tool that issues FS_IOC_SETFLAGS directly (debugfs, a custom
+#    ioctl binary, python ctypes, or a live USB mounting the disk) can still
+#    clear the immutable flag. The stronger layers are: dropping
+#    CAP_LINUX_IMMUTABLE from login sessions (pam_cap + a systemd global
+#    CapabilityBoundingSet) so even sudo/systemd-run can't get it, and the
+#    custom live-USB image that reinstates protections.
+#  * A root user who edits this profile's source and re-runs install.sh can
+#    still neuter it (install loads via the unconfined apparmor.systemd).
+#    Protect the repo source or accept this per the threat model.
+#
+# Network is intentionally NOT denied.
+
+@{cockblock_unit}   = /etc/systemd/system/cockblock.service
+@{cockblock_target} = /etc/systemd/system/cockblock.target
+# The immutable directory that blocks `systemctl disable cockblock`.
+@{cockblock_twants} = /etc/systemd/system/cockblock.target.wants/
+# Service enable symlink (inside the immutable dir) + the target's top-level
+# enable symlink (the residual bypass path - protect from casual rm/chattr).
+@{cockblock_slink}  = /etc/systemd/system/cockblock.target.wants/cockblock.service
+@{cockblock_mlink}  = /etc/systemd/system/multi-user.target.wants/cockblock.target
+@{cockblock_env}    = /etc/default/cockblock
+# apt preferences pin that blocks install/upgrade of non-installed browsers.
+# Protected the same way as the unit files: chattr +i + this deny so
+# `chattr -i`/`rm`/`mv` on it are blocked once this profile is enforced.
+@{cockblock_pref}   = /etc/apt/preferences.d/99-cockblock-no-browsers
+
+profile chattr /usr/bin/chattr {
+  # Broad allow: chattr works normally on all files except the denies below.
+  file,
+  capability,
+  # rwklx: read/write/lock/exec and link ops - blocks opening the file/dir at all.
+  deny @{cockblock_unit}   rwklx,
+  deny @{cockblock_target} rwklx,
+  deny @{cockblock_twants} rwklx,
+  deny @{cockblock_slink}  rwklx,
+  deny @{cockblock_mlink}  rwklx,
+  deny @{cockblock_env}    rwklx,
+  deny @{cockblock_pref}   rwklx,
+}

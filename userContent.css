@@ -1,0 +1,6 @@
+@-moz-document url-prefix("about:debugging") {
+  /* (legacy: hide about:debugging body. DisableDeveloperTools policy now
+     hard-blocks about:debugging entirely, so this is belt-and-suspenders.) */
+  body { display: none !important; }
+  html { background: #fff !important; }
+}

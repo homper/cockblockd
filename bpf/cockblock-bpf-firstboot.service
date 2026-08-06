@@ -1,0 +1,31 @@
+[Unit]
+Description=cockblock BPF firstboot installer
+DefaultDependencies=no
+After=systemd-modules-load.service sysinit.target
+Before=cockblock.service
+Wants=systemd-modules-load.service
+# bpffs must be mounted for the pin.
+RequiresMountsFor=/sys/fs/bpf
+# Run before the persistent unit so the firstboot can enable it this boot.
+Before=cockblock-bpf.service
+
+[Service]
+Type=oneshot
+# RemainAfterExit=no: we WANT this to retry each boot until it succeeds (when
+# bpf becomes active). On success it removes itself; on failure (bpf not yet
+# active) it exits non-zero and systemd retries on the next boot.
+RemainAfterExit=no
+# The script lives under /var/lib/cockblock (NOT /usr/lib) so it can actually
+# self-delete: ProtectSystem=strict below makes /usr read-only, which would
+# make `rm /usr/lib/...` fail and abort the firstboot (set -e) AFTER a
+# successful load. /var is not covered by ProtectSystem=strict, so the script
+# removes itself cleanly. ReadWritePaths lists it explicitly for clarity.
+ExecStart=/var/lib/cockblock/cockblockd-bpf-boot
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/sys/fs/bpf /etc/systemd/system /var/log /var/lib/cockblock
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

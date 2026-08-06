@@ -1,0 +1,14 @@
+[Unit]
+Description=cockblock protected-file updater (cap-endowed)
+After=local-fs.target apparmor.service
+RefuseManualStop=yes
+RefuseManualStart=no
+
+[Service]
+Type=oneshot
+ExecStart=/opt/cockblock/bpf/cockblock-update-runner.sh
+# System service: inherits the system manager's bounding set (includes
+# CAP_LINUX_IMMUTABLE unless the optional cap-drop is also installed).
+# The updater binary also carries CAP_LINUX_IMMUTABLE via setcap; together
+# they let it clear +i.
+RemainAfterExit=no

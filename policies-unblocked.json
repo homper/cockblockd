@@ -1,0 +1,11 @@
+{
+ "policies": {
+   "BlockAboutAddons": true,
+   "BlockAboutProfiles": true,
+   "DisablePrivateBrowsing": true,
+   "ExtensionUpdate": false,
+   "Extensions": {
+      "Locked":  ["leechblockng@proginosko.com"]
+    }
+ }
+}

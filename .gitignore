@@ -1,0 +1,6 @@
+# Generated build artifacts
+/src/cockblockd
+/bpf/cockblock_lsm.bpf.o
+/bpf/cockblock_loader
+/bpf/vmlinux.h
+__pycache__
