@@ -1,0 +1,47 @@
+{
+    "meta": {
+        "name": "Start Work Confirmation",
+        "description": "After a break ends, show a dialog and wait for the user to press Start before the next work interval begins. Skips the dialog if the break was interrupted by a suspend (the machine slept), so waking up after a sleep just continues work. Also: if the user is away from the PC (no keyboard/mouse input and no browser video playing) for idle_gate_seconds, pause the remaining work time and show the same Start dialog until it is pressed. REQUIRES the smartpause plugin to be disabled.",
+        "version": "0.0.2"
+    },
+    "dependencies": {
+        "python_modules": [],
+        "shell_commands": [],
+        "operating_systems": [],
+        "desktop_environments": [],
+        "resources": []
+    },
+    "settings": [
+        {
+            "id": "message",
+            "label": "Dialog message",
+            "type": "TEXT",
+            "default": "Break is over. Press Start to begin your next work session."
+        },
+        {
+            "id": "button_label",
+            "label": "Button label",
+            "type": "TEXT",
+            "default": "Start work"
+        },
+        {
+            "id": "idle_gate",
+            "label": "Pause + show Start dialog when away from PC",
+            "type": "BOOL",
+            "default": true
+        },
+        {
+            "id": "idle_gate_seconds",
+            "label": "Away threshold (seconds)",
+            "type": "INT",
+            "default": 150
+        },
+        {
+            "id": "idle_poll_seconds",
+            "label": "Idle check interval (seconds)",
+            "type": "INT",
+            "default": 5
+        }
+    ],
+    "break_override_allowed": false
+}

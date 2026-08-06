@@ -1,0 +1,12 @@
+#leechblockng_proginosko_com-browser-action { visibility: collapse; }
+#jid0-bnmfwww2w2w4e4edvcddbnmhdvg_jetpack-browser-action { visibility: collapse; }
+/* #unified-extensions-button { visibility: hidden; } */
+#appMenu-extensions-themes-button { visibility: collapse; }
+#appMenu-empty-profiles-button { visibility: collapse; }
+#PanelUI-fxa-menu-empty-profiles-button { visibility: collapse; }
+
+/* Hide Tab Reloader item from the tab right-click menu */
+#tabContextMenu [label*="Tab Reloader"],
+#tabContextMenu [label*="Reloader"] {
+    display: none !important;
+}

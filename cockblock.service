@@ -1,0 +1,29 @@
+[Unit]
+Description=Foo
+# RefuseManualStop blocks `systemctl stop cockblock`. Restarts, RuntimeMaxSec
+# cycles and shutdown are NOT affected, so the 30s restart loop still works.
+RefuseManualStop=yes
+
+[Service]
+# The C daemon reads ./policies.json and ./userChrome.css from its working
+# directory. Both source assets are installed to /opt/cockblock (see Makefile).
+WorkingDirectory=/opt/cockblock
+# cockblockd: C port of main.py. The binary name becomes the kernel `comm`
+# ("cockblockd"), giving the BPF LSM signal blocker a precise match.
+ExecStart=/opt/cockblock/cockblockd
+RuntimeMaxSec=30s
+Restart=always
+
+# --- Hardening (raise the bar against self-disabling) ---
+# SendSIGKILL=no: on any systemd-driven stop, do NOT escalate to SIGKILL after
+# TimeoutStopSec - only SIGTERM is sent. SIGTERM is intentionally NOT blocked
+# by the BPF LSM so the RuntimeMaxSec restart loop still works. SIGKILL from
+# systemd is removed here; SIGKILL from anywhere is denied by the BPF LSM.
+SendSIGKILL=no
+TimeoutStopSec=3s
+
+[Install]
+# WantedBy=cockblock.target (not multi-user.target directly) so that the
+# cockblock.target.wants/ directory can be made immutable to block
+# `systemctl disable cockblock`. See cockblock.target for the full rationale.
+WantedBy=cockblock.target

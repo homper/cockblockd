@@ -1,0 +1,9 @@
+{
+  "name": "page-keyword-filter-7f3a@local.addons",
+  "description": "Keyword block list for the Page Keyword Filter extension. This repo template ships EMPTY; the live words are added at install time with `cb_ff_leechblock.py kw-add` and live in the root-owned installed copy, never committed.",
+  "type": "storage",
+  "data": {
+    "keywords": [],
+    "titleOnly": true
+  }
+}

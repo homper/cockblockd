@@ -1,0 +1,62 @@
+--- a/safeeyes/ui/break_screen.py
++++ b/safeeyes/ui/break_screen.py
+@@ -299,44 +299,22 @@
+         """Lock the keyboard to prevent the user from using keyboard shortcuts.
+ 
+         (X11 only)
+-        """
+-        if self.x11_display is None:
+-            return
+-
+-        from Xlib import X
+-
+-        logging.info("Lock the keyboard")
+-        self.lock_keyboard = True
+ 
+-        # Grab the keyboard
+-        root = self.x11_display.screen().root
+-        root.change_attributes(event_mask=X.KeyPressMask | X.KeyReleaseMask)
+-        root.grab_keyboard(True, X.GrabModeAsync, X.GrabModeAsync, X.CurrentTime)
+-
+-        # Consume keyboard events
+-        while self.lock_keyboard:
+-            if self.x11_display.pending_events() > 0:
+-                # Avoid waiting for next event by checking pending events
+-                event = self.x11_display.next_event()
+-                if self.enable_shortcut and event.type == X.KeyPress:
+-                    if (
+-                        event.detail == self.keycode_shortcut_skip
+-                        and self.show_skip_button
+-                    ):
+-                        utility.execute_main_thread(lambda: self.skip_break())
+-                        break
+-                    elif (
+-                        event.detail == self.keycode_shortcut_postpone
+-                        and self.show_postpone_button
+-                    ):
+-                        utility.execute_main_thread(lambda: self.postpone_break())
+-                        break
+-            else:
+-                # Reduce the CPU usage by sleeping for a second
+-                time.sleep(1)
+-
+-        self.x11_display.ungrab_keyboard(X.CurrentTime)
+-        self.x11_display.flush()
++        VENDORED PATCH (cockblockd): keyboard grab removed. An active X
++        keyboard grab blocks the screen locker (xfce4-screensaver /
++        light-locker / xflock4) from grabbing the keyboard, so the idle
++        screen lock never fires while a break window is shown. The break
++        screen still covers the whole screen (fullscreen + set_focus(None))
++        and stays on top via _NET_WM_STATE_ABOVE + STICKY
++        (__window_set_keep_above_x11), so the user cannot actually interact
++        with other windows even though input focus may move. Skip/postpone
++        shortcuts are disabled in this setup anyway (strict_break + shortcut
++        keys = 0), so losing the grab loses nothing. self.lock_keyboard is
++        kept False so __release_keyboard_x11 (which only sets it False) is a
++        harmless no-op.
++        """
++        self.lock_keyboard = False
++        return
+ 
+     def on_key_pressed_wayland(
+         self, event_controller_key, keyval, keycode, state

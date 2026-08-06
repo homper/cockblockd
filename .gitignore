@@ -1,0 +1,12 @@
+# Generated build artifacts
+/src/cockblockd
+/bpf/cockblock_lsm.bpf.o
+/bpf/cockblock_loader
+/bpf/vmlinux.h
+__pycache__
+
+# web-ext build/sign output (signed .xpi + unsigned .zip) — never commit the
+# packaged extension; the source lives in cb_keyword_block/ and is re-signed
+# via AMO on each version bump.
+/cb_keyword_block/web-ext-artifacts/
+/cb_keyword_block/.amo-upload-uuid

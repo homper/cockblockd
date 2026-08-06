@@ -1,0 +1,49 @@
+abi <abi/5.0>,
+include <tunables/global>
+
+# Confinement profile for apparmor_parser (ENFORCE mode).
+#
+# Goal: stop the user from unloading (apparmor_parser -R) or replacing (-r) the
+# cockblock protection profiles, which would let them disable the chattr /
+# shell-bpf profiles and then undo the immutable flags or detach the BPF link.
+#
+# ENFORCE mode (no flags) is required: on kernels that emulate default_allow as
+# unconfined (e.g. this Ubuntu 7.0 kernel + apparmor 5.0-beta userspace),
+# default_allow does NOT enforce deny rules. The broad `file,` + `capability,`
+# allow preserves apparmor_parser's normal behaviour (loading/replacing OTHER
+# profiles, reading abstractions/tunables, writing the policy cache); only the
+# explicit `deny ... r` on the cockblock profile files is enforced.
+#
+# How it blocks: apparmor_parser must read() the profile file to apply it (both
+# -R remove and -r replace need to parse it). Denying read on the cockblock
+# profile files blocks both. The cockblock profiles are instead loaded by the
+# UNCONFINED loader /lib/apparmor/apparmor.systemd (used by apparmor.service),
+# which is a different binary and is NOT matched by this profile - see
+# install.sh.
+#
+# AppArmor profiles apply to the binary regardless of who runs it, so
+# `sudo apparmor_parser -R ...` is blocked the same as a bare invocation.
+#
+# LIMITATION (best-effort, not absolute):
+#  * A non-confined tool that talks to the AppArmor kernel interface directly
+#    (securityfs writes, or a custom binary using apparmor's internal APIs) can
+#    still unload profiles. This raises the bar for the common
+#    `apparmor_parser -R` / `aa-remove-unknown` workflows; it is not absolute.
+#    The stronger file layer is chattr +i on these files (see install.sh); but
+#    -R only needs READ access, so read-deny here is what stops -R while the
+#    immutable flag stops on-disk tampering of the file contents.
+#  * A root user who edits this profile's source and re-runs install.sh can
+#    still neuter it (install loads via the unconfined apparmor.systemd).
+#
+# Network is intentionally NOT denied.
+
+# All cockblock-related profile filenames. Add new ones here as they are created.
+@{cockblock_profiles} = /etc/apparmor.d/{usr.bin.chattr,usr.bin.apparmor_parser,shell-bpf}
+
+profile apparmor-parser /usr/sbin/apparmor_parser {
+  # Broad allow: apparmor_parser works normally except for the cockblock denies.
+  file,
+  capability,
+  # apparmor_parser -R/-r must read the profile file; denying read blocks both.
+  deny @{cockblock_profiles} r,
+}

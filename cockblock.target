@@ -1,0 +1,43 @@
+[Unit]
+Description=cockblock activation target
+# Intermediate target that lets us block `systemctl disable cockblock` in a
+# cockblock-SPECIFIC way (does NOT affect other units).
+#
+# Mechanism:
+#   cockblock.service  -> WantedBy=cockblock.target   (this file)
+#   cockblock.target    -> WantedBy=multi-user.target
+#
+# When enabled, systemd creates:
+#   /etc/systemd/system/multi-user.target.wants/cockblock.target        -> cockblock.target
+#   /etc/systemd/system/cockblock.target.wants/cockblock.service        -> cockblock.service
+#
+# We then `chattr +i` the cockblock.target.wants/ DIRECTORY. An immutable
+# directory refuses unlink/rename of any entry inside it (kernel returns
+# EPERM), so when `systemctl disable cockblock` tries to unlink the
+# cockblock.service symlink from cockblock.target.wants/, it fails. This is
+# cockblock-specific because only cockblock's enable symlink lives in
+# cockblock.target.wants/.
+#
+# Why a dedicated target (and not the unit file's own inode): symlinks cannot
+# carry the immutable flag on ext4, and `chattr +i` on the unit file inode does
+# NOT protect the .wants/ symlink (a separate inode) that `systemctl disable`
+# removes. Converting that symlink to a hardlink (sharing the immutable inode)
+# breaks systemd's enablement recognition (systemd only honors symlinks in
+# .wants/), so the unit stops auto-starting and `disable` trivially succeeds.
+# The immutable DIRECTORY avoids both problems: the symlink stays a real
+# symlink (enablement works) and its removal is blocked at the kernel level.
+#
+# Residual bypass (intentional; there is no cockblock-specific way to close it
+# via filesystem immutability alone): the TOP-level enable symlink
+# /etc/systemd/system/multi-user.target.wants/cockblock.target is in the SHARED
+# multi-user.target.wants/ directory, which we do NOT make immutable (it would
+# block enable/disable for every unit). So `systemctl disable cockblock.target`
+# still succeeds and prevents boot-time start of both target and service. The
+# already-running instance keeps alive via Restart=always; only the next reboot
+# is affected. To close this bypass globally, run:
+#   sudo chattr +i /etc/systemd/system/multi-user.target.wants/
+# (blocks enable/disable for ALL units in multi-user.target.wants/).
+Documentation=man:systemd.target(5)
+
+[Install]
+WantedBy=multi-user.target
